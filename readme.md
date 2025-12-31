@@ -1,183 +1,174 @@
-Structured LLM (LangGraph-based)
+Structured LLM (LangGraph)
 
-Reliable structured outputs from local LLMs using schema validation, retries, and self-repair.
+Robust structured output extraction for local LLMs using LangGraph, Pydantic, and automatic retry and repair.
 
-structured-llm is a lightweight Python package that guarantees schema-correct outputs from LLMs that do not natively support structured output (e.g. local HuggingFace models like Phi-3, Gemma, Mistral).
+Structured LLM is a lightweight Python package that makes non-JSON-compliant LLMs usable in production by enforcing structured outputs through schema validation and automatic repair loops. It is designed specifically for local and open-source language models that do not reliably follow strict output formats.
 
-It uses LangGraph to:
+Why this exists
 
-Generate LLM output
+Most local and open-source LLMs do not consistently return valid JSON, even when prompted carefully. This becomes a serious problem when building pipelines that require structured data.
 
-Validate it against a Pydantic schema
+This module solves that problem by:
 
-Automatically retry + repair invalid JSON outputs
+Calling the LLM
 
-Return a strongly-typed Python object
+Parsing the output into a strict schema
 
-✨ Why this exists
+Automatically repairing invalid JSON
 
-Most local LLMs:
+Retrying in a controlled loop
 
-❌ Do not support function calling
+Returning either a validated object or a clean failure
 
-❌ Do not enforce JSON schemas
+You never silently fail.
 
-❌ Often return malformed JSON
+Key features
 
-This package gives you:
+Automatic retry loop using LangGraph
 
-✅ Schema-validated outputs
-✅ Automatic retries
-✅ Self-repair prompts
-✅ Model-agnostic design
-✅ Works with local + hosted LLMs
+Schema-driven parsing using Pydantic
 
-🧠 How it works (high-level)
-Prompt
-  ↓
-LLM Node
-  ↓
-Parse Node (Pydantic)
-  ↓
-┌───────────────┐
-│ Valid?        │── yes ──▶ DONE
-│               │
-│ Invalid?      │── no ──▶ Repair Node → retry
-└───────────────┘
+Self-healing JSON repair prompts
 
+Works with any local or remote LLM
 
-Powered by LangGraph state machines, not brittle regex parsing.
+Model-agnostic design
 
-📦 Installation
-Editable install (recommended for development)
-git clone https://github.com/<your-username>/structured_llm.git
-cd structured_llm
+Deterministic and debuggable behavior
+
+Designed for CPU and GPU local inference
+
+High-level flow
+
+LLM generates output
+→ Output is parsed into schema
+→ If valid, return structured object
+→ If invalid, generate repair prompt
+→ Retry until success or retry limit
+
+Installation
+
+Editable install (recommended during development):
+
+git clone https://github.com/sai-dinesh98/structured-llm.git
+
+cd structured-llm
 pip install -e .
 
+After this, the package can be imported from any directory.
 
-After this, you can import it from any directory.
+Basic usage
 
-🗂 Project structure
-structured_llm/
-├── pyproject.toml
-├── README.md
-└── src/
-    └── structured_llm/
-        ├── __init__.py
-        ├── engine.py        # High-level API
-        ├── graph.py         # LangGraph definition
-        ├── llm.py           # LLM adapters
-        ├── nodes.py         # llm / parse / repair nodes
-        ├── state.py         # Graph state
-        └── utils.py
+Step 1: Define your output schema
 
-🚀 Quick start
-1️⃣ Define a schema
-from pydantic import BaseModel, Field
+Use Pydantic to define the structure you want from the LLM.
+
+Example:
 
 class EvaluationSchema(BaseModel):
-    feedback: str = Field(description="Feedback within 100 words")
-    score: int = Field(ge=0, le=10)
+feedback: str
+score: int
 
-2️⃣ Load your local LLM
-from structured_llm.llm import GetGemmaModel
+Step 2: Load your local LLM
 
-model = GetGemmaModel(
-    model_path="path/to/Phi3-mini-instruct"
-).get_model()
+Example using a HuggingFace-based local model:
 
+from llm import GetGemmaModel
 
-Any HuggingFace causal LM works.
+model_path = "path/to/local/model"
+llm = GetGemmaModel(model_path).get_model()
 
-3️⃣ Run structured evaluation
-from structured_llm.engine import StructuredEvaluator
+The only requirement is that the model exposes an invoke(prompt) method that returns text.
 
-evaluator = StructuredEvaluator(
-    llm=model,
-    schema=EvaluationSchema,
-    max_retries=2
+Step 3: Build the structured execution graph
+
+from structured_llm.engine import build_structured_graph
+
+graph = build_structured_graph(
+llm=llm,
+schema=EvaluationSchema,
+max_retries=2
 )
 
-result = evaluator.invoke(
-    prompt="Evaluate the language quality of the following essay...",
-)
+Step 4: Run inference
 
-4️⃣ Access typed output
-print(result.parsed.feedback)
-print(result.parsed.score)
+result = graph.invoke({
+"prompt": "Evaluate the language quality of this essay",
+"raw_output": None,
+"parsed": None,
+"error": None,
+"retries": 0,
+})
 
+result["parsed"] will either be:
 
-✅ result.parsed is a real Pydantic object, not raw JSON.
+AI a valid Pydantic object
 
-🧪 What happens on bad JSON?
+or None if all retries fail
 
-If the model outputs something like:
+What problems this solves
 
-Sure! Here's the evaluation:
-{
-  feedback: "Great essay"
-  score: 8
+LLM outputs markdown instead of JSON
 
+LLM adds explanations or extra text
 
-The system will automatically:
+Invalid types or missing fields
 
-Detect schema failure
+Silent parsing failures
 
-Generate a repair prompt
+Unbounded retry loops
 
-Retry with corrected JSON
+When to use this
 
-Stop after max_retries
+Use this package if:
 
-No manual parsing. No crashes.
+You work with local or open-source LLMs
 
-🔧 Configuration
-Parameter	Description
-schema	Pydantic model defining output
-max_retries	Max repair attempts
-llm	Any LangChain-compatible chat model
-❌ What this does NOT do
+You need reliable structured output
 
-❌ Does not rely on OpenAI / Anthropic
+You cannot depend on provider-native function calling
 
-❌ Does not require function calling
+You want full control over retries and validation
 
-❌ Does not use fragile regex parsing
+When not to use this
 
-🧩 When should I use this?
+You may not need this package if:
 
-Use structured-llm when:
+You only use models with native structured output support
 
-You run local models
+You fully trust the model to always return valid JSON
 
-You need guaranteed JSON
+Extensibility
 
-You want schema safety
+The design allows you to:
 
-You don’t trust raw LLM outputs
+Swap schemas dynamically
 
-🔮 Future roadmap
+Add logging or telemetry nodes
 
- Generic StructuredLLM base class
+Plug into larger agent systems
 
- CLI (structured-llm eval essay.txt)
+Add streaming or tool-based LLMs
 
- Streaming support
+Extend the repair strategy
 
- Metrics / tracing hooks
+Roadmap
 
- Multi-schema routing
+Generic high-level StructuredRunner API
 
-📜 License
+Improved JSON extraction before parsing
+
+Streaming support
+
+PyPI release
+
+Example notebooks and demos
+
+License
 
 MIT License
 
-🙌 Credits
+Author
 
-Built with:
-
-LangGraph
-
-LangChain
-
-Pydantic
+Sai Dinesh
+Systems and Control | AI Systems | LangGraph and Local LLMs
