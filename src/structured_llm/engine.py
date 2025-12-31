@@ -1,6 +1,6 @@
 from typing import Type
 from pydantic import BaseModel
-from llm import GetChatModel
+from .llm import GetChatModel
 from .graph import build_graph
 
 class StructuredEvaluator:
