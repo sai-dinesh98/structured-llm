@@ -1,15 +1,15 @@
 from typing import Type
 from pydantic import BaseModel
-from .llm import GetChatModel
 from .graph import build_graph
+from langchain_core.runnables import Runnable
 
-class StructuredEvaluator:
-    def __init__(self, model_path, schema: Type[BaseModel]):
-        self.schema = schema,
-        self.llm = GetChatModel(model_path).get_model()
+class StructuredEvaluator(Runnable):
+    def __init__(self, llm, schema: Type[BaseModel]):
+        self.schema = schema
+        self.llm = llm
         self.graph = build_graph(self.llm, self.schema)
 
-    def run(self, prompt: str) -> BaseModel | None:
+    def invoke(self, prompt: str, config=None) -> BaseModel | None:
         initial_state = {
             "prompt": prompt,
             "raw_output": None,
@@ -20,4 +20,4 @@ class StructuredEvaluator:
 
         result = self.graph.invoke(initial_state)
 
-        return result['parsed']
+        return result["parsed"]
