@@ -6,7 +6,8 @@ from .utils import extract_json
 def llm_node(state: GraphState, llm):
     response = llm.invoke(state["prompt"])
     return {
-        "raw_output": response.content
+        "raw_output": response.content,
+        "error": None
     }
 
 def parse_node(state: GraphState, schema: Type[BaseModel]):
@@ -42,6 +43,6 @@ Broken output:
 
     return {
         "raw_output": response.content,
-        "retries": state["retries"] + 1,
+        "retries": (state.get("retries") or 0) + 1,
         "error": None
     }
