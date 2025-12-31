@@ -9,9 +9,9 @@ class StructuredEvaluator(Runnable):
         self.llm = llm
         self.graph = build_graph(self.llm, self.schema)
 
-    def invoke(self, prompt: str, config=None) -> BaseModel | None:
+    def invoke(self, input, config=None) -> BaseModel | None:
         initial_state = {
-            "prompt": prompt,
+            "prompt": input,
             "raw_output": None,
             "parsed": None,
             "error": None,
